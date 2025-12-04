@@ -1,5 +1,6 @@
 <script lang="ts">
   import Button from '$lib/components/button/button.svelte';
+
   import Filter from '$lib/components/icons/Filter.svelte';
   import MagnifyingGlass from '$lib/components/icons/MagnifyingGlass.svelte';
   import SortMostToLeast from '$lib/components/icons/SortMostToLeast.svelte';
@@ -7,10 +8,12 @@
   import IssuesList from '$lib/components/wave/issues-page/components/issues-list/issues-list.svelte';
   import { onMount, type ComponentProps, type Snippet } from 'svelte';
   import { getIssues } from '$lib/utils/wave/issues';
+  import { searchIssues } from '$lib/utils/wave/search-issues';
   import type { Pagination } from '$lib/utils/wave/types/pagination';
   import FilterConfig from './components/filter-config/filter-config.svelte';
   import TransitionedHeight from '$lib/components/transitioned-height/transitioned-height.svelte';
   import { type IssueDetailsDto, type IssueFilters } from '$lib/utils/wave/types/issue';
+  import IssuesSearch from './components/issues-search/issues-search.svelte';
   import Spinner from '$lib/components/spinner/spinner.svelte';
   import Breadcrumbs from '$lib/components/breadcrumbs/breadcrumbs.svelte';
   import Plus from '$lib/components/icons/Plus.svelte';
@@ -104,6 +107,17 @@
     applyingFilters = false;
   }
 
+  let searchOpen = $state(false);
+  let searchQuery = $state('');
+  let searchResults = $state<{ data: IssueDetailsDto[]; pagination: Pagination } | null>(null);
+
+  async function getMoreSearchResults(pagination: Pagination) {
+    const nextPage = pagination.page + 1;
+    if (!nextPage) return null;
+
+    return await searchIssues(searchQuery, nextPage, pagination.limit);
+  }
+
   let selectedIssues = $state<IssueDetailsDto[]>([]);
 
   let listInstance = $state<IssuesList | undefined>(undefined);
@@ -186,7 +200,15 @@
       </div>
     {:else}
       <div class="issue-list-configuration">
-        <Button icon={MagnifyingGlass}>Search</Button>
+        {#if searchOpen}
+          <IssuesSearch
+            bind:query={searchQuery}
+            bind:results={searchResults}
+            onclose={() => (searchOpen = false)}
+          />
+        {:else}
+          <Button icon={MagnifyingGlass} onclick={() => (searchOpen = true)}>Search</Button>
+        {/if}
 
         <div>
           <Button icon={Filter} onclick={handleFilterClick} highlit={filtersOpen}>
@@ -221,22 +243,30 @@
         <div class="spinner">
           <Spinner />
         </div>
-      {:else if issues.pagination.total === 0}
+      {:else if issues.pagination.total === 0 && !searchResults}
         <div style="padding: 2rem; text-align: center; color: var(--color-foreground-level-5);">
           No issues found matching the selected filters.
         </div>
+      {:else if searchResults && searchResults.data.length === 0}
+        <div style="padding: 2rem; text-align: center; color: var(--color-foreground-level-5);">
+          No issues found matching "{searchQuery}".
+        </div>
       {:else}
-        <IssuesList
-          {ownUserId}
-          {pathPrefix}
-          {showNewApplicationsBadge}
-          {waves}
-          bind:this={listInstance}
-          multiselectMode={allowAddToWave}
-          issuesWithPagination={issues}
-          getMoreIssues={(currentPagination) => getMoreIssues(currentPagination, appliedFilters)}
-          onselectchange={(selected) => (selectedIssues = selected)}
-        />
+        {#key searchResults ? 'search' : 'list'}
+          <IssuesList
+            {ownUserId}
+            {pathPrefix}
+            {showNewApplicationsBadge}
+            {waves}
+            bind:this={listInstance}
+            multiselectMode={allowAddToWave}
+            issuesWithPagination={searchResults || issues}
+            getMoreIssues={searchResults
+              ? (currentPagination) => getMoreSearchResults(currentPagination)
+              : (currentPagination) => getMoreIssues(currentPagination, appliedFilters)}
+            onselectchange={(selected) => (selectedIssues = selected)}
+          />
+        {/key}
       {/if}
     </Card>
   </div>
