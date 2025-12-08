@@ -1,6 +1,5 @@
 <script lang="ts">
   import Button from '$lib/components/button/button.svelte';
-
   import Filter from '$lib/components/icons/Filter.svelte';
   import MagnifyingGlass from '$lib/components/icons/MagnifyingGlass.svelte';
   import SortMostToLeast from '$lib/components/icons/SortMostToLeast.svelte';
